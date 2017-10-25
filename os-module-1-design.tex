@@ -1,0 +1,149 @@
+
+\chapter{Design of Module \textit{Threads}}
+
+
+% ================================================================================= %
+\section{Assignment Requirement}
+
+
+\subsection{Initial Functionality}
+
+
+\subsection{Requirements}
+
+The requirements of the ``Threads'' assignment are the following:
+\begin{enumerate}
+    \item \textit{Timer}. You have to change the current implementation of the timer, named \texttt{EX\_TIMER} and located in the file ``\texttt{ex\_timer.c}'', such that to replace the busy-waiting technique with the sleep -- wakeup (block -- unblock) one. A sleeping thread is one being blocked by waiting (in a dedicated waiting queue) for some system resource to become available. You could use executive events (\texttt{EX\_EVENT}) to achieve this.
+
+    \item \textit{Timer - imp}. We are going to use a global table containing pairs of timestamps and EX_EVENTS. We will use the PIT ISR to check if any timestamp
+    in the table has expired. If an entry containing an expired timestamp is found, the associated EX_EVENT will be signaled.
+    The global table will be an array with the entries sorted by the timestamp (binary insertion).
+    
+    \item \textit{Priority Scheduler --- Fixed-Priority Scheduler}. You have to change the current Round-Robin (RR) scheduler, such that to take into account different priorities of different threads. The scheduling principle of the priority scheduler is ``any time it has to choose a thread from a thread list, the one with the highest priority must be chosen''. It must also be preemptive, which means that at any moment the processor will be allocated to the ready thread with the highest priority. The priority scheduler does not change in any way the threads' priorities (established by threads themselves) and for this reason could also be called fixed-priority-based scheduler. 
+
+    \item \textit{Priority Donation}. As described in the \OSName{} documentation after the fixed priority scheduler is implemented a priority inversion problem occurs. Namely, threads with medium priority may get CPU time before high priority threads which are waiting for resources owned by low priority threads. You must implement a priority donation mechanism so the low priority thread receives the priority of the highest priority thread waiting on the resources it owns.
+    
+    \item \textit{Advanced Scheduler (MLFQ) --- Dynamic-Priority Scheduler}. This is basically a priority-based scheduler, but with variable priorities, changed by the OS (scheduler) during threads execution based on their consumed processor time and waiting time. The rules to change the threads' priorities are described in the \OSName{} documentation. NOTE: This is required only for 4 people teams.
+
+\end{enumerate}
+
+
+The way to allocate requirements on member teams. 
+\begin{itemize}
+    \item 3-members teams
+        \begin{enumerate}
+            \item timer
+            
+            \item priority scheduler: thread queues management (ready queue, mutex queues, executive event queues, take care of places where thread queues' order could be altered due to priority inversion)
+            
+            \item priority scheduler: priority inversion (change lock implementation, cases of multiple-locks, case of nested donation)
+            
+        \end{enumerate}
+
+    \item 4-members teams (exceptional cases)
+        \begin{enumerate}
+            \item timer
+            
+            \item priority scheduler: thread queues management (ready queue, mutex queues, executive event queues, take care of places where thread queues' order could be altered due to priority inversion)
+            
+            \item priority scheduler: priority inversion (change lock implementation, cases of multiple-locks, case of nested donation)
+            
+            \item advanced scheduler: fixed-point operations, priority-related formula implementations            
+        \end{enumerate}
+
+\end{itemize}
+
+
+
+\subsection{Basic Use Cases}
+
+
+
+% ================================================================================= %
+\section{Design Description}
+
+\subsection{Needed Data Structures and Functions}
+
+
+
+\subsection{Detailed Functionality}
+
+Some questions you have to answer (inspired from the original Pintos design templates):
+\begin{enumerate}
+    \item timer
+        \begin{itemize}
+            \item The main idea is to hold a list of initialized timers that will be checked at each time tick. The threads for which the time expired
+            will be signaled using their associated \textit{EX_EVENT}. The list of timers must be synchronized using a lock in order to avoid race conditions
+            when multiple threads try to create a timer at the same time.
+            \item The timer mechanism makes use of the \textit{_IomuSystemTickInterrupt} ISR to check if any of the timers fired.
+            \item A call \textit{ExTimerWait()}, basically forwards the call to \textit{ExEventWait()} which will put the current thread to sleep.
+            \item The event associated to the timer will be a notification type event, because there may be more than one thread waiting for the same timer.
+
+            \item The \textit{EX_TIMER} structure will be augmented to hold an \textit{EX_EVENT} object 
+            \item \textit{ExTimerInit()} will create a new timer object and a new notification type \textit{EX_EVENT} associated with it. Then the new
+            timer will be added into the global list of timers.
+        \end{itemize}
+    
+    \item priority scheduler
+        \begin{itemize}
+            \item How do you ensure that the highest priority thread waiting for a mutex or executive event wakes up first?
+                - When threads are woken up they are inserted in a certain order into the ready list
+    
+            \item Describe the sequence of events when a call to \textit{MutexAcquire()} causes a priority donation.  How is nested donation handled?
+            
+            \item Describe the sequence of events when \textit{MutexRelease()} is called on a lock that a higher-priority thread is waiting for.
+            
+            \item Describe a potential race in \textit{ThreadSetPriority()} and explain how your implementation avoids it.  Can you use a lock to avoid this race?
+        \end{itemize}
+
+    \item advanced scheduler (MLFQ)
+        \begin{itemize}
+            \item Suppose threads A, B, and C have nice values 0, 1, and 2. Each has a \textit{recent\_cpu} value of 0.  Fill in the Table~\ref{tlb:mlfq-tracing}  (note: you can use \url{http://www.tablesgenerator.com/} to easily generate Latex tables) showing the scheduling decision and the priority and \textit{recent\_cpu} values for each thread after each given number of timer ticks:
+
+% Please add the following required packages to your document preamble:
+% \usepackage{multirow}
+\begin{table}[]
+\centering
+\caption{MLFQ Tracing Example}
+\label{tlb:mlfq-tracing}
+\begin{tabular}{|l|l|l|l|l|l|l|l|}
+\hline
+\multirow{2}{*}{timer ticks} & \multicolumn{3}{l|}{recent\_cpu} & \multicolumn{3}{l|}{priority} & \multirow{2}{*}{thread to run} \\ \cline{2-7}
+                             & A         & B         & C        & A        & B        & C       &                                \\ \hline
+0                            &           &           &          &          &          &         &                                \\ \hline
+4                            &           &           &          &          &          &         &                                \\ \hline
+8                            &           &           &          &          &          &         &                                \\ \hline
+12                           &           &           &          &          &          &         &                                \\ \hline
+16                           &           &           &          &          &          &         &                                \\ \hline
+20                           &           &           &          &          &          &         &                                \\ \hline
+24                           &           &           &          &          &          &         &                                \\ \hline
+28                           &           &           &          &          &          &         &                                \\ \hline
+32                           &           &           &          &          &          &         &                                \\ \hline
+36                           &           &           &          &          &          &         &                                \\ \hline
+\end{tabular}
+\end{table}
+
+
+            \item Did any ambiguities in the scheduler specification make values in the table uncertain?  If so, what rule did you use to resolve them?  Does this match the behavior of your scheduler?
+            
+            \item How is the way you divided the cost of scheduling between code inside and outside interrupt context likely to affect performance?
+
+        \end{itemize}
+
+    
+\end{enumerate}
+
+
+\subsection{Explanation of Your Design Decisions}
+
+
+
+
+% ================================================================================= %
+\section{Tests}
+
+
+
+% ================================================================================= %
+\section{Observations}
+
