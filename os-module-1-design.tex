@@ -1,49 +1,53 @@
+\documentclass{report}
+\usepackage[utf8]{inputenc}
 
-\chapter{Design of Module \textit{Threads}}
+\begin{document}
+
+\chapter{ Design of Module \textit{Threads} }
 
 
+ 
 % ================================================================================= %
 \section{Assignment Requirement}
-
+	\item This project your goal is to improve the thread component.
+		\begin{enumerate}
+			\item Improve the timer implementation by removing busy waiting.
+			\item Schedule threads according to their priority.
+			\item Solve priority inversion problems by implementing priority donation.
+		\end{enumerate}
 
 \subsection{Initial Functionality}
-
-
+	\begin{itemize}
+		\item The timer uses busy waiting: it calls \textit{ThreadYield()} in a while loop as long as the time returned by \textit{IomuGetSystemTime()} is smaller than
+			  the thread's trigger time.
+		\item HAL9000 currently implements a basic round-robin scheduler which doesn't take into account thread priorities when choosing the next thread to run.
+			  It schedules threads using a simple First Come First Served technique, letting each thread run for a constant time quantum.
+	\end{itemize}
 \subsection{Requirements}
 
 The requirements of the ``Threads'' assignment are the following:
 \begin{enumerate}
-    \item \textit{Timer}. You have to change the current implementation of the timer, named \texttt{EX\_TIMER} and located in the file ``\texttt{ex\_timer.c}'', such that to replace the busy-waiting technique with the sleep -- wakeup (block -- unblock) one. A sleeping thread is one being blocked by waiting (in a dedicated waiting queue) for some system resource to become available. You could use executive events (\texttt{EX\_EVENT}) to achieve this.
+	\begin{itemize}
+		\item \textit{Timer}. You have to change the current implementation of the timer, named \texttt{EX\_TIMER} and located in the file ``\texttt{ex\_timer.c}'', such that to replace the busy-waiting technique with the sleep -- wakeup (block -- unblock) one. A sleeping thread is one being blocked by waiting (in a dedicated waiting queue) for some system resource to become available. You could use executive events (\texttt{EX\_EVENT}) to achieve this.
+		
+		\item \textit{Priority Scheduler --- Fixed-Priority Scheduler}. You have to change the current Round-Robin (RR) scheduler, such that to take into account different priorities of different threads. The scheduling principle of the priority scheduler is ``any time it has to choose a thread from a thread list, the one with the highest priority must be chosen''. It must also be preemptive, which means that at any moment the processor will be allocated to the ready thread with the highest priority. The priority scheduler does not change in any way the threads' priorities (established by threads themselves) and for this reason could also be called fixed-priority-based scheduler. 
 
-    \item \textit{Timer - imp}. We are going to use a global table containing pairs of timestamps and EX_EVENTS. We will use the PIT ISR to check if any timestamp
-    in the table has expired. If an entry containing an expired timestamp is found, the associated EX_EVENT will be signaled.
-    The global table will be an array with the entries sorted by the timestamp (binary insertion).
-    
-    \item \textit{Priority Scheduler --- Fixed-Priority Scheduler}. You have to change the current Round-Robin (RR) scheduler, such that to take into account different priorities of different threads. The scheduling principle of the priority scheduler is ``any time it has to choose a thread from a thread list, the one with the highest priority must be chosen''. It must also be preemptive, which means that at any moment the processor will be allocated to the ready thread with the highest priority. The priority scheduler does not change in any way the threads' priorities (established by threads themselves) and for this reason could also be called fixed-priority-based scheduler. 
-
-    \item \textit{Priority Donation}. As described in the \OSName{} documentation after the fixed priority scheduler is implemented a priority inversion problem occurs. Namely, threads with medium priority may get CPU time before high priority threads which are waiting for resources owned by low priority threads. You must implement a priority donation mechanism so the low priority thread receives the priority of the highest priority thread waiting on the resources it owns.
-    
+		\item \textit{Priority Donation}. As described in the \OSName{} documentation after the fixed priority scheduler is implemented a priority inversion problem occurs. Namely, threads with medium priority may get CPU time before high priority threads which are waiting for resources owned by low priority threads. You must implement a priority donation mechanism so the low priority thread receives the priority of the highest priority thread waiting on the resources it owns.
+	\end{itemize}
 \end{enumerate}
 
-
-The way to allocate requirements on member teams. 
-\begin{itemize}
-    \item 3-members teams
+\subsection{Requirements allocation}
+    \item \textbf{TEAM HAPPY CODING (3-members teams)}
         \begin{enumerate}
-            \item timer
-            
-            \item priority scheduler: thread queues management (ready queue, mutex queues, executive event queues, take care of places where thread queues' order could be altered due to priority inversion)
-            
-            \item priority scheduler: priority inversion (change lock implementation, cases of multiple-locks, case of nested donation)
-            
+            \item Timer - Palko Lorand Arpad 
+            \item Priority Scheduler: Szabo Cristian-Iacob
+            \item Priority Donation: Rusu Vlad
         \end{enumerate}
 
-\end{itemize}
-
-
-
 \subsection{Basic Use Cases}
-
+	\item The Executive Timer is used for thread scheduling. Each thread runs for a certain time, and the block-unblock mechanism 
+		  makes use of this timer.
+	\item The Priority Scheduler is used for scheduling threads on the CPUs. Priority donation is needed due to priority inversion.
 
 
 % ================================================================================= %
@@ -51,118 +55,106 @@ The way to allocate requirements on member teams.
 
 \subsection{Needed Data Structures and Functions}
 
-*******************************************************
-\textit{ex_timer.h}
-struct _EX_TIMER \{
-	...
-	EX_EVENT Event;
-\}
+	\textit{ex\_timer.h} \\
+	struct \_EX\_TIMER \{ \\\
+	    ... \\
+	    EX\_EVENT Event; \\
+	\};\\
+\\
+\\
+\\
+	\textit{timer.c} \\
+	struct \_EX\_TIMER\_SYSTEM\_DATA \{\\
+		LIST\_ENTRY AllTimers;\\
+	\};
 
-\textit{timer.c}
-struct _EX_TIMER_SYSTEM_DATA \{
-	LIST_ENTRY AllTimers;
-\}
-
-void notifyTimer();
-	- checks if any of the global timers fired
-
-\textit{iomu.c}
-void _IomuSystemTickInterrupt()
-	- call \textit{notifyTimer()}
-
-\textit{thread_internal.h}
-struct _THREAD \{
-	...
-	THREAD_PROIRITY StaticPriority;
-
-	LOCK HeldMutexesLock;
-
-	__Guarded_by(HeldMutexesLock)
-	LIST HeldMutexes;
-	...
-\}
-
-\textit{thread.c}
-struct _THREAD_SYSTEM_DATA \{
-	...
-	LIST_ENTRY AllReadyThreads[32];
-	...
-\}
-
-THREAD_PRIORITY ThreadGetPriorityRecursive(PTHREAD Thread, BYTE RecursionDepth);
-******************************************************
-
+	void notifyTimer(){}\\
+		- checks if any of the global timers fired\\
+\\
+\\
+	\textit{iomu.c}\\
+	void \_IomuSystemTickInterrupt(){}\\
+		- call \textit{notifyTimer()}\\
+\\
+	\textit{thread\_internal.h} \\
+	struct \_THREAD \{\\
+		...\\
+		THREAD\_PROIRITY StaticPriority;\\
+\\
+		LOCK HeldMutexesLock;\\
+\\
+		\_\_Guarded\_by(HeldMutexesLock) \\
+		LIST HeldMutexes;\\
+		...\\
+	\};\\
+\\
+	\textit{thread.c}\\ 
+	struct \_THREAD\_SYSTEM\_DATA \{\\
+		...\\
+		LIST\_ENTRY AllReadyThreads[32];\\
+		...\\
+	\};\\
+\\
+	\textit{THREAD\_PRIORITY ThreadGetPriorityRecursive(PTHREAD Thread, BYTE RecursionDepth);}
 
 \subsection{Detailed Functionality}
-
-Some questions you have to answer (inspired from the original Pintos design templates):
 \begin{enumerate}
-    \item timer
+    \item Timer
         \begin{itemize}
             \item The main idea is to hold a list of initialized timers that will be checked at each time tick. The threads for which the time expired
-            will be signaled using their associated \textit{EX_EVENT}. The list of timers must be synchronized using a lock in order to avoid race conditions
+            will be signaled using their associated \textit{EX\_EVENT}. The list of timers must be synchronized using a lock in order to avoid race conditions
             when multiple threads try to create a timer at the same time.
-            \item The timer mechanism makes use of the \textit{_IomuSystemTickInterrupt} ISR to check if any of the timers fired.
+            \item The timer mechanism makes use of the \textit{\_IomuSystemTickInterrupt} ISR to check if any of the timers fired.
             \item A call \textit{ExTimerWait()}, basically forwards the call to \textit{ExEventWait()} which will put the current thread to sleep.
             \item The event associated to the timer will be a notification type event, because there may be more than one thread waiting for the same timer.
-
-            \item The \textit{EX_TIMER} structure will be augmented to hold an \textit{EX_EVENT} object 
-            \item \textit{ExTimerInit()} will create a new timer object and a new notification type \textit{EX_EVENT} associated with it. Then the new
+            \item The \textit{EX\_TIMER} structure will be augmented to hold an \textit{EX\_EVENT} object 
+            \item \textit{ExTimerInit()} will create a new timer object and a new notification type \textit{EX\_EVENT} associated with it. Then the new
             timer will be added into the global list of timers.
         \end{itemize}
     
-    \item priority scheduler
+	\item Priority scheduler
         \begin{itemize}
-			\item The \textit {THREAD_SYSTEM_DATA} structure will be augmented to keep a list of waiting lists, each index corresponding to a priority level:
+			\item The \textit {THREAD\_SYSTEM\_DATA} structure will be augmented to keep a list of waiting lists, each index corresponding to a priority level:
 				  list[0] = list of threads with priority 0 ... list[31] = list of threads with priority 31. Threads will be added to the lists corresponding
-				  to their priority whenever ThreadInit() is called. 
+				  to their priority whenever \textit{ThreadInit()} is called. 
 			\item The scheduler will traverse the list from index 31 (highest priority) to 0 (lowest priority) and schedule the threads from these 
 			      waiting lists, so the highest priority thread will be always scheduled first.
 			\item In order to implement priority donation, we need to keep for each thread a list containing all the mutexes the thread holds. This list
-				  will be added to the \textit{_THREAD} structure toghether with a static priority field that will store the thread's initial priority.
+				  will be added to the \textit{\_THREAD} structure together with a static priority field that will store the thread's initial priority.
 				  We also need to keep a reference to each mutex's owner and a list of waiting threads for each mutex, but these are
-				  already present in the \textit{_MUTEX} structure. This way, if a thread is waiting for a mutex, we can check the mutex's owner
-				  to know who will recieve the donation and we will have access to all threads waiting for that mutex in order to compute the donated priority.
+				  already present in the \textit{\_MUTEX} structure. This way, if a thread is waiting for a mutex, we can check the mutex's owner
+				  to know who will receive the donation and we will have access to all threads waiting for that mutex in order to compute the donated priority.
 			\item A thread's priority is computed as the maximum value of its static priority and its donated priority. 
-				  The donated priority's value will be determined using a ThreadGetPriorityRecursive() function which will compute the maximum value 
+				  The donated priority's value will be determined using a \textit{ThreadGetPriorityRecursive()} function which will compute the maximum value 
 				  from all held mutex's waiting lists recursively. In order to make sure that the function returns, a max recursion depth will be set (8).
-				  The \textit{_THREAD} structures will be updated whenever MutexAcquire(), MutexTryAcquire() and MutexRelease() are called.
-           
-		   \item Describe the sequence of events when a call to \textit{MutexAcquire()} causes a priority donation.  How is nested donation handled?
-			
-					
-				The owner field of the mutex is set with the current thread, and the mutex is inserted into the thread's list of held mutexes.
-				The nested donations are not handled in \textit{MutexAcquire()}. This problem is solved by \textit{ThreadGetPriorityRecursive()}\'s recursive nature which queries the
-				thread's priority in depth.
-				*******************************************************************************************************************
-            
-            \item Describe the sequence of events when \textit{MutexRelease()} is called on a lock that a higher-priority thread is waiting for.
-				*******************************************************************************************************************
-				The mutex holder is unset and the mutex is removed from the held mutex list.
-				Then we will iterate through all the threads on the waiting list and unblock the one with the highest priority if it has a higher priority than the current thread.
-				If we find a thread with a higher priority, ThreadYield() will be called and the unblocked thread will be scheduled.
-				*******************************************************************************************************************
-            
-            \item Describe a potential race in \textit{ThreadSetPriority()} and explain how your implementation avoids it.  Can you use a lock to avoid this race?
-				*******************************************************************************************************************
-				This cannot happen if we only change thread->priority, and then calculate the actual priorities (after donation) on the fly. Thus if the thread
-				is interrupted while changing its priority it either has the new, or the old priority and the next thread to run is determined by using ThreadGetPriority().
-				*******************************************************************************************************************
+				  The \textit{\_THREAD} structures will be updated whenever \textit{MutexAcquire()}, \textit{MutexTryAcquire()} and \textit{MutexRelease()} are called.
+		   \item  When \textit{MutexAcquire()} is called, the owner thread of the mutex is set and the mutex is inserted into the thread-held mutexes list.
+				  The nested donations problem is solved by \textit{ThreadGetPriorityRecursive()}\ which queries the thread's priorities in depth, having above
+				  recursion depth of 8.
+		   \item When \textit{MutexRelease()} is called, the owner thread of the mutex is set to NULL and the mutex is removed from the corresponding thread-held mutexes list.
+				 The mutex's waiting list will be than traversed and the thread with the highest priority will be unblocked if it has a higher priority than the current thread.
+				 Unblocking the thread will be done through a call to \textit{ThreadYield()} and the thread will be scheduled.
+		   \item \textit{ThreadSetPriority()} won't lead to any race conditions as we calculate the thread's priority as the maximum value of its 
+				 static priority and its donated priority which is computed on the fly through the \textit{ThreadGetPriorityRecursive()} function.	
         \end{itemize}
     
 \end{enumerate}
 
 
 \subsection{Explanation of Your Design Decisions}
-
-
-
+	\begin{itemize}
+		\item The timer implementation with \textit{EX\_EVENT} was chosen because Executive Events are already implemented in HAL9000. All we 
+			  have to do is to forward \textit{ExTimerWait()} to \textit{ExEventWait()}, register an event for each timer and keep a global list
+			  with all the initialized timers. We fire each timer when its time slice expires.
+		\item For priority scheduling, keeping a list of waiting lists for each priority level seems to be the simplest solution that should not	
+			  generate any unexpected problems. Computing the donated priority using the \textit{ThreadGetPriorityRecursive()} should solve the
+			  priority donation problem with ease.
+	\end{itemize}
 
 % ================================================================================= %
 \section{Tests}
 
-
-
 % ================================================================================= %
 \section{Observations}
 
+\end{document}
